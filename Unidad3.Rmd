@@ -1,0 +1,539 @@
+---
+title: "Unidad 3"
+author: "Valentina Muñoz Madrid"
+output: html_document
+---
+
+### **Introducción a R con uso bionformático**
+
+
+1. Cargar archivos. 
+```{r}
+#Se carga archivo del repositorio
+maiz_meta <- read.delim("data/maizteocintle_SNP50k_meta_extended.txt", comment.char="#")
+```
+
+2. For loops 
+Siguiendo la siguiente sintaxis se pueden crear:
+`for (counter in vector) {command}`
+```{r}
+#Ejemplo
+for (i in 2:10){
+  print(paste(i, "elefantes se columpiaban sobre la tela de una araña"))
+}
+```
+
+Ejercicios de for loops
+```{r}
+#Crear loop que divida 35 entre 1:10
+for (i in 1:10){
+  print(35/i)
+}
+#El mismo loop anterior pero que dividan solo los números primos. 
+for (i in 1:10) {
+  if (i == c(2, 3, 5))  {
+    next
+  }
+  print(35/i) 
+}
+
+##
+algo <- character(0)
+for (i in 1:10){
+  if (i == 2i + 1)  {
+    next
+  }
+  rbind(algo, c(35/i, i))
+}
+print(algo)
+```
+
+3. Ver un script
+
+¿Qué hacen los dos foor loops? 
+
+El primer loop permite obtener una matriz de distancia efectiva y la media para cada raster. Primero se define cuales son los archivos de resistencia, luego se obtiene las distancias efectivas. Posteriormente el promedio de las distancias efectivas por población y el output se guarda en un archivo. 
+El segundo loop permite correr un test de mantel por cada condición. 
+
+¿Qué paquetes se necesitan para correr el script?
+
+Paquetes: ade4, ggplot2, sp
+
+¿Qué archivos necesitas para correr el script? Archivo "surveyed_mountains.tsv, corresponden a: Populatios ID codes.
+Archivo "Balpina_focalpoints.txt, corresponden a los pop names que hay en los focal points. 
+
+**Funciones propias: crear funciones y utilizarlas con source.**
+
+`source` permite correr un script de R dentro de otro script de R. 
+El esqueleto de funciones en R corresponde a:
+
+```
+myfunction <- function(arg1, arg2, ...){
+stataments
+return(object)
+}
+```
+```{r}
+give_i_line <- function(file, i){
+  ##Argumentos
+  #file = camino al archivo de interés
+  #i = numero de linea que queremos ver 
+  
+  ##Función
+  #leer lista de indicadores
+  indicador <- read.delim(file, header = FALSE, quote = "", stringsAsFactors = FALSE)
+  
+  #Indicar linea
+  x <- indicador[i,1]
+  return(x)
+}
+
+give_i_line("data/indicadores.txt", i = 3)
+```
+
+Si se guarda esta función como un script con `source`, después se puede correr desde otro script. 
+
+**Ejercicio** Crear una función:
+```{r}
+calc.tetha <- function(Ne, u) {
+  ##Argumentos
+  #Ne 
+  #u
+  
+  ##Funcion 
+  tetha <- 4*Ne*u
+  return(tetha)
+}
+calc.tetha(3,4)
+```
+
+###**Manipulación y limpieza de datos en R**
+
+1. **Reestructuración de datos y el principio de los datos limpios.**
+
+Con el paquete `tidyr` se pueden *limpiar* datos, cosa de que la base de datos quede ordenada y facil de interpretar (además de correcto) para el programa. Presenta dos funciones bastante utiles: 
+- `gather`: Junta multiples columnas en pares de nombres y valores. 
+- `spread`: Recibe 2 columnas y las separa. 
+
+Para el siguiente ejercicio se utilizará la base de datos basada en la relación entre ingreso y religión. 
+```{r}
+#cargar la base
+pew <- read.delim(file = "http://stat405.had.co.nz/data/pew.txt",
+  header = TRUE, stringsAsFactors = FALSE, check.names = F)
+pew
+```
+
+La base de datos tiene tres variables, la religio a la que pertenece la persona, el ingreso (dividida en diferentes rangos) y la frecuencia de estos dos. La idea es hacer que queden 3 columnas. 
+
+```{r}
+#Cargar paquetes
+library(tidyr)
+library(dplyr)
+library(readr)
+#Reorganiz la tabla
+pew_tidy <- gather(data = pew, income, frequency, -religion) #el signo - indica que esta columna no será apilada. 
+#Observar los primeros datos
+head(pew_tidy)
+#Los ultimos también
+tail(pew_tidy)
+```
+
+**Una columna asociada a más de una variable**
+
+Base de datos de la OMS que contiene número de casos de tuberculosis por pais y año, grupo demográfico (sexo y edad)
+```{r}
+#Cargar base de datos
+tb <- read.csv("data/tb.csv")
+head(tb)
+```
+
+```{r}
+#se junta edad y sexo
+tb_tidy <- gather(data = tb, demo, n, -year, -id, -iso2)
+head(tb_tidy)
+
+#Ahora se procede a separarlas
+tb_new <- separate(tb_tidy, demo, c("sex", "age"), 8)
+head(tb_new)
+```
+
+**Variables almacenadas en filas y columnas**
+En ciertos momentos sucede que las variables están tanto en filas como en columnas. Para esto se ocupará la base de datos de clima en Cuernavaca. 
+
+```{r}
+clima <- read.delim("data/clima.txt", stringsAsFactors = FALSE)
+head(clima)
+```
+
+id, año y mes se encuentran en columnas únicas, por otro lado, los días (d1 - d31) en multiples columnas (las cuales serán fusionadas con `gather`). En filas tenemos tmin y tmax. 
+```{r}
+clima_long <- gather(clima, day, value, d1:d31, na.rm = TRUE)
+head(clima_long)
+```
+
+Ahora cambiamos ciertas variables con `mutate` y cambiamos el orden con `arrange`
+```{r}
+clima_vars <- clima_long %>%
+  mutate(day = parse_number(day), value = value/10)  %>%
+  arrange(id, year, month, day)
+head(clima_vars)
+```
+
+La columna "element" tiene dos variables (Tmin y Tmax), para esto se utiliza la función `spread`. 
+```{r}
+clima_tidy <- spread(clima_vars, element, value) #se separa la variable element, en la columna value se tenía el valor de temperatura.
+head(clima_tidy)
+```
+
+Buenas prácticas: 
+- Incluir un encabezado con el nomnbre de las variables. 
+- Los nombres de las variables deben ser entendibles
+- Guardar los datos en un archivo por tabla. 
+- Escribir un script con las modificaciones que se hicieron a los datos crudos. 
+
+2. **Divide, aplica, combina**
+
+Hace referencia a como trabajar la variable de interés. En primera instancia **separar**
+la base de datos original, luego **aplicar** funciones de interés a cada subconjunto para finalmente **combinar** los resultados en una nueva base de datos. 
+
+Para esto utilizaremos la siguiente base de datos: 
+```{r}
+flights <- read.csv("data/flights.csv")
+head(flights)
+```
+
+Para analizar por grupo se utilizarán funciones del paquete `dplyr`. 
+
+Encontrar todos los vuelos hacia SFO ó OAK
+```{r}
+flights %>% filter(dest == "SFO" | dest == "OAK")
+```
+
+Seleccionar un conjunto de datos. `select`
+```{r}
+flights %>% select(dest)
+```
+
+Arreglar u ordenar valores de una o más variables.`arrange`. 
+```{r}
+flights %>% select(dest) %>%
+  arrange(dest)
+```
+
+Mutar `mutate` consiste en crear nuevas variables (columnas)
+```{r}
+#Agregar la distancia en metros
+flights %>% 
+  mutate(dist_m = dist*1000)
+```
+
+Resumenes por grupo se realizan mediante la función `summarise`. 
+```{r}
+df_ej <- data.frame(genero= c("mujer", "hombre", "mujer", "mujer", "hombre"), 
+  estatura = c(1.65, 1.80, 1.70, 1.60, 1.67))
+df_ej
+
+filter(flights, dest == "SFO" | dest == "OAK") %>%
+  summarise(mean = mean(arr))
+```
+
+###**Graficar en R**
+
+R tiene una inmensa capacidad de graficar y visualizar datos, existiendo una gran variedad de paquetes especializados en esto, como `ggplot2`.
+
+1. Gráficos bases. 
+* - Gráficas x,y
+```{r}
+plot(x = cars$speed, y = cars$dist, 
+     xlab = "Velocidad",
+     ylab = "Distancia", 
+     cex = 1, #tamaño de la figura
+     pch = 17, #forma
+     col = "blue" #color
+     ) 
+```
+
+2. Histogramas
+
+Base de datos de tres librerias que fueron secuenciadas en Illumina. 
+```{r}
+#Cargar base de datos. 
+reads <- read.delim("data/reads.txt")
+```
+
+Graficar histograma de lecturas de cada muestra
+```{r}
+hist(reads$nreads, 
+     ylab = "Frecuencia", 
+     xlab = "Reads")
+```
+
+3. Barplot
+
+```{r}
+palette(c("green", "grey", "orange")) #se escribe previamente la paleta de colores deseada. También se puede agregar manualmente. 
+barplot(reads$nreads, col = reads$Library,
+        names.arg = reads$Library, #agrega nombre a al muestra correspondiente
+        ylab = "Frecuencia de reads", 
+        xlab = "Librerias")
+```
+
+Ahora si se quiere agregar una leyenda:
+```{r}
+barplot(reads$nreads, col = reads$Library,
+        ylab = "Frecuencia de reads", 
+        xlab = "Librerias")
+#Agregar la leyenda
+legend(x = "topleft", 
+       legend = levels(reads$Library), 
+       fill = palette()[1:3])
+```
+
+**ggplot2**
+Construye sus gráficas definiendo los componentes paso a paso.
+```{r}
+#Cargar paquete
+library(ggplot2)
+```
+
+Se graficará un scatterplot. 
+```{r}
+ggplot(iris, aes(Sepal.Length, Sepal.Width, 
+       colour = Species, #Agrega color por sp
+       shape = Species)) + #Agrega una forma determinada por sp
+  geom_point() + #Indica que se grafiquen puntos 
+  theme_bw() +#con fondo blanco
+  theme(panel.grid = element_blank()) #eleminar las líneas
+```
+
+También se pueden graficar la misma información en paneles por separados
+```{r}
+#Separación por sp
+ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) + 
+  geom_point() + 
+  facet_grid(Species ~ .) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+```
+
+Si queremos que quede de forma vertical: 
+```{r}
+ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) + 
+  geom_point() + 
+  facet_grid(. ~ Species) + #Importa el orden en que pongamos esto. 
+  xlab("Largo de sépalo") + #Nombre eje x
+  ylab("Ancho del sépalo") + #Nombre eje y
+  theme_bw() + 
+  theme(panel.grid = element_blank()) 
+```
+
+De igual manera, se puede agregar el resultado de un módelo matemático. 
+```{r}
+ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) + 
+  geom_point() + 
+  facet_grid(Species ~ .) + 
+  geom_smooth(method = "lm") + #Se agrega una regresión lineal
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+```
+
+2. Barplot
+
+Las barras pueden significar frecuencia de casos para cada valor de x o el valor de la columna en el set de datos. 
+
+Ejemplo
+```{r}
+ggplot(reads, aes(sample, nreads, fill = Library)) + 
+  geom_bar(stat = "identity") #Indica el valor de la columna en el set de datos. 
+```
+
+El gráfico muestra los nombres de las muestras apilados, por lo que es dificil de leer. 
+```{r}
+#Rotar nombres
+ggplot(reads, aes(sample, nreads, fill = Library)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+```
+
+3. Boxplot
+
+Con los mismos datos anteriores se graficará un boxplot
+```{r}
+#Plot
+p <- ggplot(reads, aes(Library, nreads, fill=Library)) +
+  geom_boxplot() +
+  guides(fill = FALSE) #Quita la leyenda
+p
+```
+
+Al igual que con los otros gráficos, en ggplot se pueden cambiar los colores manualmente. 
+```{r}
+p <- p + scale_fill_manual(values = c("grey", "orange", "steelblue")) 
+p
+```
+
+También se puede agregar colores desde una paleta predeterminada. 
+```{r}
+p <- ggplot(reads, aes(Library, nreads, fill=Library)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette = "Pastel2")
+p
+```
+
+**Gradientes de colores**
+
+Se puede utilizar un gradiente de colores para mostrar la representatividad de nuestros datos. 
+```{r}
+#Generar datos
+set.seed(1)
+df <- data.frame(xval=rnorm(50), yval=rnorm(50))
+
+#plot
+ggplot(df, aes(xval, yval, colour = yval)) +
+  geom_point()
+
+#Cambiar gradiente
+ggplot(df, aes(xval, yval, colour = yval)) +
+  geom_point() + 
+  scale_colour_gradientn(colours = rainbow(10))
+```
+
+**Multiples gráficas en una sola gráfica.**
+
+Para esto, primero hay que generar y guardar los gráficos en 4 objetos distintos. Se utilizará dataset ChickWeight
+```{r}
+#Primer gráfico
+p1 <- ggplot(ChickWeight, aes(Time, weight, colour = Diet, group = Chick)) + 
+  geom_line() + 
+  ggtitle("Curva Crecimiento por individuo")
+
+#Segundo gráfico
+p2 <- ggplot(ChickWeight, aes(Time, weight, colour = Diet)) + 
+  geom_point() + 
+  geom_smooth() + 
+  ggtitle("Curva crecimiento ajustada según dieta")
+
+#Tercer gráfico
+p3 <- ggplot(subset(ChickWeight, Time == 21), aes(x = weight, colour = Diet)) +
+  geom_density() +
+  ggtitle("Peso final por dieta")
+
+#Cuarto gráfico
+p4 <- ggplot(subset(ChickWeight, Time ==21), aes(weight, fill = Diet)) + 
+  geom_histogram(colour = "black",  #Bordes color negro
+                 binwidth = 50) + #ancho de la banda
+  facet_grid(Diet ~ .) +
+  ggtitle("Peso final por dieta") + 
+  theme(legend.position = "none") #no es necesario leyenda
+```
+
+Para gráficar todos los gráficos en un solo panel es necesario usar la función `multiplot` del paquete Rmisc
+```{r}
+#Cargar paquete
+library(Rmisc)
+
+#Gráficar los 4 plots
+multiplot(p1, p2, p3, p4, 
+          cols = 2) #numero columnas
+```
+
+### **Gráficar árboles filogenéticos**
+
+Paquetes tales como `ape`, `phytools` sirven para gráficar arboles filogenéticos. 
+
+```{r}
+#Cargar libreria
+library(ape)
+
+#Simular árbol
+set.seed(1)
+tree <- rtree(n = 10, rooted = FALSE)
+
+#Ver que contiene
+str(tree)
+
+#Graficar el arbol
+plot.phylo(tree, edge.width = 2)
+```
+
+```{r}
+#Para cambiar la forma a cladograma
+plot.phylo(tree, type = "cladogram", edge.width = 2)
+
+#Forma abanico
+plot.phylo(tree, type = "radial", edge.width = 2)
+```
+
+**Enraizar el árbol**
+```{r}
+#Especificar output para enraizar
+tree <- root(tree, outgroup = "t1")
+
+#arbol enraizado
+plot.phylo(tree, edge.width = 2)
+```
+
+**Leer un árbol en R y graficarlo**
+
+R puede leer arboles en formato newick o nexus con la función `read.tree` de `ape`:
+```{r}
+#Cargar datos
+maiz.tree <- read.nexus("data/tree")
+
+#Ver contenido
+maiz.tree
+
+#Graficar
+plot(maiz.tree, type = "unrooted", edge.width = 0.1, cex = 0.5)
+```
+
+Vamos a clasificar por colores según la categoria Altitud
+```{r}
+#Info extra de las muestras
+fullmat <- read.delim("data/maizteocintle_SNP50k_meta_extended.txt")
+
+#Cantidad de colores necesarios
+col_needed <- length(levels(fullmat$Categ.Altitud))
+palette(rainbow(col_needed))
+
+#Graficar sin nombre de muestras
+plot(maiz.tree, type = "unrooted", edge.width = 0.3, show.tip = FALSE)
+
+#Agregar tips que correspondan a la categoria Altitud
+tiplabels(pch = 20, col = fullmat$Categ.Altitud)
+
+#Agregar leyenda
+legend(x = "bottomleft", legend = levels(fullmat$Categ.Altitud), pch = 19, col = 1:col_needed, cex = 1, bty = "n")
+```
+
+Ejercicio: Colorear por raza
+```{r}
+col_needed <- length(levels(fullmat$Raza))
+palette(rainbow(col_needed))
+
+#Graficar sin nombre de muestras
+plot(maiz.tree, type = "unrooted", edge.width = 0.3, show.tip = FALSE)
+
+#Agregar tips que correspondan a la categoria Altitud
+tiplabels(pch = 20, col = fullmat$Raza)
+
+```
+
+### **Mapas en R**
+
+R tiene la capacidad de manipular mapas, pudiendo realizar simulaciones de cambio climático y modelos de distribución de especies, entre otras. Un paquete útil es `maptools`
+```{r}
+#Cargar paquete
+library(maptools)
+```
+
+La función `readShapePoly` permite leer data proveniente de GIS (Geographic information system), es decir, es un vector geoespacial. 
+```{r}
+#Cargar shapefile
+
+```
+
+
+
+
+
